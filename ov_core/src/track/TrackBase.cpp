@@ -274,6 +274,10 @@ void TrackBase::display_undistort(cv::Mat &img_out, std::string overlay) {
     } else {
       cv::putText(img_temp, overlay, txtpt, cv::FONT_HERSHEY_COMPLEX_SMALL, (is_small) ? 1.5 : 3.0, cv::Scalar(0, 0, 255), 3);
     }
+    // draw center line of the camera only for debug
+    // Eigen::MatrixXd camera_param = cam->get_value();
+    // cv::line(img_temp, cv::Point(0, camera_param(3)), cv::Point(cam->w(), camera_param(3)), cv::Scalar(0, 0, 0), 1);
+    // cv::line(img_temp, cv::Point(camera_param(2), 0), cv::Point(camera_param(2), cam->h()), cv::Scalar(0, 0, 0), 1);
     img_temp.copyTo(img_out(cv::Rect(max_width * index_cam, 0, img_last_cache[pair.first].cols, img_last_cache[pair.first].rows)));
     index_cam++;
   }
