@@ -228,6 +228,13 @@ public:
     H_dz_dzeta(1, 6) = cam_d(1) * uv_norm(1) * inv_r * std::pow(theta, 7);
     H_dz_dzeta(1, 7) = cam_d(1) * uv_norm(1) * inv_r * std::pow(theta, 9);
   }
+
+  void refresh_undistort_map() override {
+    cv::Size img_size(_width, _height);
+
+    cv::fisheye::initUndistortRectifyMap(camera_k_OPENCV, camera_d_OPENCV, cv::noArray(), camera_k_OPENCV, img_size, CV_32FC1,
+                                         _undistort_map1, _undistort_map2);
+  }
 };
 
 } // namespace ov_core

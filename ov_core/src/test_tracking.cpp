@@ -35,6 +35,7 @@
 #include <opencv2/highgui/highgui.hpp>
 
 #include "cam/CamRadtan.h"
+#include "cam/CamEqui.h"
 #include "feat/Feature.h"
 #include "feat/FeatureDatabase.h"
 #include "track/TrackAruco.h"
@@ -96,7 +97,7 @@ int main(int argc, char **argv) {
 
   // Location of the ROS bag we want to read in
   std::string path_to_bag;
-  nh->param<std::string>("path_bag", path_to_bag, "/home/patrick/datasets/euroc_mav/V1_01_easy.bag");
+  nh->param<std::string>("path_bag", path_to_bag, "/home/guo/datasets/MH_03_medium.bag");
   // nh->param<std::string>("path_bag", path_to_bag, "/home/patrick/datasets/open_vins/aruco_room_01.bag");
   PRINT_INFO("ros bag path is: %s\n", path_to_bag.c_str());
 
@@ -168,10 +169,32 @@ int main(int argc, char **argv) {
   // Fake camera info (we don't need this, as we are not using the normalized coordinates for anything)
   std::unordered_map<size_t, std::shared_ptr<CamBase>> cameras;
   for (int i = 0; i < 2; i++) {
-    Eigen::Matrix<double, 8, 1> cam0_calib;
-    cam0_calib << 1, 1, 0, 0, 0, 0, 0, 0;
-    std::shared_ptr<CamBase> camera_calib = std::make_shared<CamRadtan>(100, 100);
-    camera_calib->set_value(cam0_calib);
+    // Parse camera intrinsics
+    std::vector<double> camera_intrinsics, camera_distortion, camera_resolution;
+    std::string distortion_model;
+    parser->parse_external("relative_config_imucam", "cam" + std::to_string(0), "intrinsics", camera_intrinsics);
+    parser->parse_external("relative_config_imucam", "cam" + std::to_string(0), "distortion_coeffs", camera_distortion);
+    parser->parse_external("relative_config_imucam", "cam" + std::to_string(0), "distortion_model", distortion_model);
+    parser->parse_external("relative_config_imucam", "cam" + std::to_string(0), "resolution", camera_resolution);
+    assert(camera_intrinsics.size() == 4 && camera_distortion.size() == 4 && camera_resolution.size() == 2);
+    std::vector<double> cam_calib_vec;
+    std::copy(camera_intrinsics.begin(), camera_intrinsics.end(), std::back_inserter(cam_calib_vec));
+    std::copy(camera_distortion.begin(), camera_distortion.end(), std::back_inserter(cam_calib_vec));
+    Eigen::Map<Eigen::Matrix<double, 8, 1>> cam_calib(cam_calib_vec.data());
+    std::shared_ptr<CamBase> camera_calib;
+    if(distortion_model == "radtan")
+    {
+      camera_calib.reset(new CamRadtan(camera_resolution[0], camera_resolution[1]));
+    }
+    else if(distortion_model == "equidistant")
+    {
+      camera_calib.reset(new CamEqui(camera_resolution[0], camera_resolution[1]));
+    }
+    else
+    {
+      PRINT_ERROR("unknown camera distortion model: %s\n", distortion_model.c_str());
+    }
+    camera_calib->set_value(cam_calib);
     cameras.insert({i, camera_calib});
   }
 
@@ -314,14 +337,16 @@ void handle_stereo(double time0, double time1, cv::Mat img0, cv::Mat img1) {
   }
   extractor->feed_new_camera(message);
 
-  // Display the resulting tracks
-  cv::Mat img_active, img_history;
+  // Display the resulting tracks and undistorted image
+  cv::Mat img_active, img_history, img_undistort;
   extractor->display_active(img_active, 255, 0, 0, 0, 0, 255);
   extractor->display_history(img_history, 255, 255, 0, 255, 255, 255);
+  extractor->display_undistort(img_undistort);
 
   // Show our image!
   cv::imshow("Active Tracks", img_active);
   cv::imshow("Track History", img_history);
+  cv::imshow("Undistorted", img_undistort);
   cv::waitKey(1);
 
   // Get lost tracks

@@ -115,6 +115,14 @@ public:
    */
   virtual void display_history(cv::Mat &img_out, int r1, int g1, int b1, int r2, int g2, int b2, std::vector<size_t> highlighted = {},
                                std::string overlay = "");
+  
+  /**
+   * @brief Shows the undistorted image according to camera intrinsic
+   * 
+   * @param img_out Undistorted image of all cameras
+   * @param overlay Text overlay to replace to normal "cam0" in the top left of screen
+   */
+  virtual void display_undistort(cv::Mat &img_out, std::string overlay = "");
 
   /**
    * @brief Get the feature database with all the track information

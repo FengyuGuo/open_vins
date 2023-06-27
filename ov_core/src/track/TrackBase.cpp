@@ -227,6 +227,58 @@ void TrackBase::display_history(cv::Mat &img_out, int r1, int g1, int b1, int r2
   }
 }
 
+void TrackBase::display_undistort(cv::Mat &img_out, std::string overlay) {
+  // Cache the images to prevent other threads from editing while we viz (which can be slow)
+  std::map<size_t, cv::Mat> img_last_cache, img_mask_last_cache;
+  {
+    std::lock_guard<std::mutex> lckv(mtx_last_vars);
+    img_last_cache = img_last;
+    img_mask_last_cache = img_mask_last;
+  }
+
+  // Get the largest width and height
+  int max_width = -1;
+  int max_height = -1;
+  for (auto const &pair : img_last_cache) {
+    if (max_width < pair.second.cols)
+      max_width = pair.second.cols;
+    if (max_height < pair.second.rows)
+      max_height = pair.second.rows;
+  }
+
+  // Return if we didn't have a last image
+  if (img_last_cache.empty() || max_width == -1 || max_height == -1)
+    return;
+
+  // If the image is "small" thus we shoudl use smaller display codes
+  bool is_small = (std::min(max_width, max_height) < 400);
+
+  img_out = cv::Mat(max_height, (int)img_last_cache.size() * max_width, CV_8UC3, cv::Scalar(0, 0, 0));
+  int index_cam = 0;
+  for (const auto &pair : img_last_cache) {
+    cv::Mat img_temp;
+    cv::Mat img_distort;
+    cv::cvtColor(pair.second, img_distort, cv::COLOR_GRAY2RGB);
+    cv::Mat mask_distort = cv::Mat::zeros(img_mask_last_cache[pair.first].rows, img_mask_last_cache[pair.first].cols, CV_8UC3);
+    mask_distort.setTo(cv::Scalar(0, 0, 255), img_mask_last_cache[pair.first]);
+    std::shared_ptr<CamBase> cam = camera_calib[pair.first];
+    cv::Mat img_undistort = cam->undistort_image(img_distort);
+    cv::Mat mask_undistort = cam->undistort_image(mask_distort);
+    // std::cout << img_undistort.size() << ", " << mask_undistort.size() << std::endl;
+    // std::cout << img_undistort.type() << ", " << mask_undistort.type() << std::endl;
+    cv::addWeighted(mask_undistort, 0.1, img_undistort, 1.0, 0.0, img_temp);
+    auto txtpt = (is_small) ? cv::Point(10, 30) : cv::Point(30, 60);
+    if (overlay == "") {
+      cv::putText(img_temp, "CAM:" + std::to_string((int)pair.first), txtpt, cv::FONT_HERSHEY_COMPLEX_SMALL, (is_small) ? 1.5 : 3.0,
+                  cv::Scalar(0, 255, 0), 3);
+    } else {
+      cv::putText(img_temp, overlay, txtpt, cv::FONT_HERSHEY_COMPLEX_SMALL, (is_small) ? 1.5 : 3.0, cv::Scalar(0, 0, 255), 3);
+    }
+    img_temp.copyTo(img_out(cv::Rect(max_width * index_cam, 0, img_last_cache[pair.first].cols, img_last_cache[pair.first].rows)));
+    index_cam++;
+  }
+}
+
 void TrackBase::change_feat_id(size_t id_old, size_t id_new) {
 
   // If found in db then replace

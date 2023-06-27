@@ -79,6 +79,8 @@ public:
     tempD(2) = calib(6);
     tempD(3) = calib(7);
     camera_d_OPENCV = tempD;
+
+    refresh_undistort_map();
   }
 
   /**
@@ -157,6 +159,18 @@ public:
    */
   virtual void compute_distort_jacobian(const Eigen::Vector2d &uv_norm, Eigen::MatrixXd &H_dz_dzn, Eigen::MatrixXd &H_dz_dzeta) = 0;
 
+  /**
+   * @brief Get the undistorted image.
+   * @param img Raw image
+   */
+  virtual cv::Mat undistort_image(const cv::Mat &img)
+  {
+    //Get undistort image by cv::remap function
+    cv::Mat undistorted;
+    cv::remap(img, undistorted, _undistort_map1, _undistort_map2, cv::INTER_LINEAR);
+    return undistorted;
+  }
+
   /// Gets the complete intrinsic vector
   Eigen::MatrixXd get_value() { return camera_values; }
 
@@ -190,6 +204,15 @@ protected:
 
   /// Height of the camera (raw pixels)
   int _height;
+
+  /// Map to undistort image
+  cv::Mat _undistort_map1, _undistort_map2;
+
+  /**
+   * @brief Refresh the undistort map according to current camera intrinsic parameters
+   * 
+   */
+  virtual void refresh_undistort_map() = 0;
 };
 
 } // namespace ov_core
